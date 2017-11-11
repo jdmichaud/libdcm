@@ -1,0 +1,87 @@
+
+## File format (cf DICOM standard Part 10 Sect 7.1)
+
+A DICOM file is composed of:
+- 128 bytes (which may be empty or application related informations) followed by
+- the magic word "DICM" followed by
+- the meta information headers followed by
+- a list of tags
+
+## Meta information header (cf DICOM standard Part 6 Chapt 7)
+
+The Meta information header is a list of explicitely typed tags (see Tags
+formats) which provide general and meta information about the DICOM file. Those
+data are essential to properly decode the rest of the file.
+All meta information tags are of the group 0x0002 and this group contains only
+meta information tags.
+
+### Transfert types (Cf DICOM standard Part 6 Chapt A[3]):
+
+The most important meta information tag is the transfer type. It shall be read
+in order to properly decode tags belonging to groups > 0x0002.
+
+* 1.2.840.10008.1.2: Implicit VR Endian: Default Transfer Syntax for DICOM
+* 1.2.840.10008.1.2.1: Explicit VR Little Endian
+* 1.2.840.10008.1.2.1.99:  Deflated Explicit VR Little Endian
+* 1.2.840.10008.1.2.2: Explicit VR Big Endian
+
+A DICOM file shall only contain explicit or implicit tags. This is determined by
+the tag (0x0002,0x0010) TransferSyntaxUID. Depending on the value of that tags,
+the tags will either be implicit or explicit. However, even in implicitly tagged
+DICOM files, the DICOM Meta Element (the header tags (0002, XXXX)) will be
+explicitely defined.
+
+> For a list of DICOM Meta Element refer to the DICOM standard Part 6 Chapt 7[5]
+
+## Tags formats (cf DICOM standard Part 5 Sect 7.1[1])
+
+Data Element with Explicit VR of OB, OD, OF, OL, OW, SQ, UC, UR, UT or UN:
+
+XXXX XXXX XXXX 0000 XXXXXXXX ...................................................
+^^^^ ^^^^ ^^^^ ^^^^ ^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |    |    |    |      |      \__ VL bytes of data
+  |    |    |    |      \_________ Value length (4 bytes)
+  |    |    |    \________________ Reserved (2 bytes)
+  |    |    \_____________________ Value representation (2 bytes)
+  |    \__________________________ Element number (2 bytes)
+  \_______________________________ Group number (2 bytes)
+
+Data Element with Explicit VR other than as shown in
+
+XXXX XXXX XXXX XXXX ............................................................
+^^^^ ^^^^ ^^^^ ^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |    |    |    |    \___________ VL bytes of data
+  |    |    |    \________________ Value length (2 bytes) /!\
+  |    |    \_____________________ Value representation (2 bytes)
+  |    \__________________________ Element number (2 bytes)
+  \_______________________________ Group number (2 bytes)
+
+Data Element with Implicit VR:
+
+XXXX XXXX XXXXXXXX .............................................................
+^^^^ ^^^^ ^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |    |      |      \____________ VL bytes of data
+  |    |      \___________________ Value length (4 bytes)
+  |    \__________________________ Element number (2 bytes)
+  \_______________________________ Group number (2 bytes)
+
+When implicitely tagged, tags have their types defined in the DICOM data
+dictionnary (Cf DICOM standard Part 6 Chapt 6[2])
+
+## Value representation (Cf DICOM standard Part 5 Sect 6.2[4])
+
+Tags' value representations are either implicitly or explicitly. In any case,
+each tag has a value reprensentation (a type). Most value representation will
+define a tag as a string of characters or some form of decimal value. But they
+can carry more specific meaning. A tag UI, for example, will contain a string,
+but of a particular type: a Unique Id. So that tag can be read with a specific
+parser.
+
+the `SQ` tag is a special type of tag. It contains other DICOM tags. This means
+that the DICOM format can contain a tree of tags.
+
+[1] http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_7.1
+[2] http://dicom.nema.org/medical/dicom/current/output/html/part06.html#chapter_6
+[3] http://dicom.nema.org/medical/dicom/current/output/html/part06.html#chapter_A
+[4] http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.2
+[5] http://dicom.nema.org/medical/dicom/current/output/html/part06.html#chapter_7
