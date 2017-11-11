@@ -13,4 +13,4 @@ debug:
 	ranlib ${LIB}
 
 clean:
-	rm -fr ${LIB}
+	rm -fr ${LIB} $(SRC:.c=.o)
