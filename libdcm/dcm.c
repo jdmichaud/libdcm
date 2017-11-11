@@ -49,12 +49,20 @@ int8_t close_file(file_t *file) {
 }
 
 ssize_t check_preamble(file_t *file, ssize_t offset) {
-  // No checking for now
+  for (size_t i = 0; i < PREAMBLE_LENGTH / sizeof (uint64_t); ++i) {
+    if ((uint64_t) file->content[i] != 0)
+      // Some garbage is present in the preamble
+      // For now, just ignore it
+      return offset + PREAMBLE_LENGTH;
+  }
   return offset + PREAMBLE_LENGTH;
 }
 
 ssize_t check_header(file_t *file, ssize_t offset) {
-  // No checking for now
+  // Check that magic word
+  if (strncmp(MAGIC_WORD, (char *) file->content, 4))
+    // Didn't find it? Just ignore that for now
+    return offset + 4;
   return offset + 4; // length of "DICM"
 }
 
