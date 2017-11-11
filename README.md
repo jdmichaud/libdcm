@@ -2,5 +2,5 @@
 
 ```
 make
-./dcmr somedicom.dcm
+./dcmr/dcmr somedicom.dcm
 ```

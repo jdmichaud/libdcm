@@ -1,1 +1,3 @@
 dcmr
+libdcm.a
+*.o

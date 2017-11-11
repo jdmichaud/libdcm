@@ -1,11 +1,15 @@
-EXE = dcmr
-SRC = data-dictionary.c dcm.c main.c
-
 all:
-	cc -Wall -Wextra -Wpedantic -Wfatal-errors ${SRC} -o ${EXE}
+	${MAKE} -C libdcm
+	${MAKE} -C dcmr
+
 debug:
-	cc -Wall -Wextra -Wpedantic -Wfatal-errors -ggdb3 ${SRC} -o ${EXE}
+	${MAKE} debug -C libdcm
+	${MAKE} debug -C dcmr
+
 static:
-	cc -Wall -Wextra -Wpedantic -Wfatal-errors -O3 ${SRC} -o ${EXE} -static
+	${MAKE} -C libdcm
+	${MAKE} static -C dcmr
+
 clean:
-	rm -fr ${EXE}
+	${MAKE} clean -C libdcm
+	${MAKE} clean -C dcmr
