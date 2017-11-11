@@ -18,6 +18,11 @@
 
 #define TYPE_OF(TAG, VR) !strncmp(TAG->vr, VR, 2)
 
+#define PRINT_TAG(fd, tag) \
+  printf("(0x%04X, 0x%04X) %.2s (%u) %s\n", tag.group, \
+         tag.element, tag.vr, tag.datasize, \
+         tag_data_to_string(&tag, (char *) tag.data, NULL));
+
 typedef struct file_s {
   int16_t fd;
   ssize_t size;

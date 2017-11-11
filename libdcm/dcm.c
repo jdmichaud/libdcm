@@ -51,9 +51,8 @@ int8_t close_file(file_t *file) {
 ssize_t check_preamble(file_t *file, ssize_t offset) {
   for (size_t i = 0; i < PREAMBLE_LENGTH / sizeof (uint64_t); ++i) {
     if ((uint64_t) file->content[i] != 0)
-      // Some garbage is present in the preamble
-      // For now, just ignore it
-      return offset + PREAMBLE_LENGTH;
+      // Some garbage is present in the preamble so we don't skip it
+      return 0;
   }
   return offset + PREAMBLE_LENGTH;
 }
@@ -146,6 +145,7 @@ ssize_t decode_meta_data(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta)
   while (head <= file->size) {
     memset(&tag, 0, sizeof (tag));
     offset = decode_explicit_tag(file, offset, &tag);
+    // PRINT_TAG(stdout, tag);
     if (tag.group != META_DATA_GROUP) break;
     switch (tag.element) {
     case 0x0010:
@@ -208,10 +208,18 @@ uint8_t is_dicom(file_t *file) {
   }
   // Check if the first 2 bytes represent a group number of tag which are
   // usually at the beginning of a DICOM file
-  if (file->size > 0 && (((uint16_t *) file->content)[0] == 0x0002 ||
+  if (file->size > 2 && (((uint16_t *) file->content)[0] == 0x0002 ||
     ((uint16_t *) file->content)[0] == 0x0008)) {
     // if yes, check if a known value representation is present
     if (is_valid_vr((char *) &(file->content[5]))) return 1;
+    // Check if we can read a size and ten read the next tag
+    uint32_t datasize = ((uint32_t *) file->content)[1];
+    if (file->size > 8 + datasize &&
+      (((uint16_t *) file->content)[(8 + datasize) / sizeof (uint16_t)] == 0x0002 ||
+       ((uint16_t *) file->content)[(8 + datasize) / sizeof (uint16_t)] == 0x0008)) {
+      // We found another tag. Let's consider this a DICOM file
+      return 1;
+    }
   }
   return 0; // Not a DICOM file
 }
