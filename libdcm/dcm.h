@@ -12,6 +12,7 @@
 #define PATCH 0
 
 #define ERROR -1
+#define ERROR_BIG_ENDIAN -2
 #define STR_REPR_BINARY "<binary data>"
 #define STR_REPR_TOO_MUCH_DATA "<too much data>"
 #define MAX_LOADED_TAG 4096
@@ -19,7 +20,7 @@
 #define TYPE_OF(TAG, VR) !strncmp(TAG->vr, VR, 2)
 
 #define PRINT_TAG(fd, tag) \
-  printf("(0x%04X, 0x%04X) %.2s (%u) %s\n", tag.group, \
+  printf("(0x%04X, 0x%04X) %.2s (%u) [%s]\n", tag.group, \
          tag.element, tag.vr, tag.datasize, \
          tag_data_to_string(&tag, (char *) tag.data, NULL));
 
@@ -30,18 +31,6 @@ typedef struct file_s {
   char    *filename;
 } file_t;
 
-typedef struct explicit_tag_s {
-  uint16_t group;
-  uint16_t element;
-  char     vr[2];
-  uint16_t datasize;
-  intptr_t data;
-} explicit_tag_t;
-
-typedef explicit_tag_t tag_t;
-
-extern const uint8_t g_explicit_tag_size;
-
 typedef struct implicit_tag_s {
   uint16_t group;
   uint16_t element;
@@ -50,6 +39,29 @@ typedef struct implicit_tag_s {
 } implicit_tag_t;
 
 extern const uint8_t g_implicit_tag_size;
+
+typedef struct explicit_tag_s {
+  uint16_t group;
+  uint16_t element;
+  char     vr[2];
+  uint16_t datasize;
+  intptr_t data;
+} explicit_tag_t;
+
+extern const uint8_t g_explicit_tag_size;
+
+typedef struct double_length_explicit_tag_s {
+  uint16_t group;
+  uint16_t element;
+  char     vr[2];
+  char     reserved;
+  uint32_t datasize;
+  intptr_t data;
+} double_length_explicit_tag_t;
+
+extern const uint8_t g_double_length_explicit_tag_size;
+
+typedef double_length_explicit_tag_t tag_t;
 
 // Cf DICOM standard Part 6 Chapt 7
 typedef struct dicom_meta_s {
@@ -78,8 +90,10 @@ ssize_t decode_implicit_tag(file_t *file, ssize_t offset, tag_t *tag);
 ssize_t decode_meta_data(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta);
 int8_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
                      tag_t *tags, size_t maxtags);
+uint8_t is_double_length_vr(char *s);
 uint8_t is_valid_vr(char *s);
 uint8_t is_dicom(file_t *file);
 tag_t *get_tag(tag_t *tags, uint32_t number);
+char *trim(char *s, char *output);
 
 #endif // __DICM_H__

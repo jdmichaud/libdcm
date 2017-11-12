@@ -28,22 +28,37 @@ void usage(char **argv) {
 }
 
 int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
-  tag_t *studyUid = get_tag(tags, STUDY_INSTANCE_UID);
-  if (studyUid == NULL) {
+  char *studyUid = "";
+  char *seriesUid = "";
+  char sopInstanceUid[64] = { 0 };
+  if (dicom_meta->media_storage_sop_instance_uid[0]) {
+    memcpy(sopInstanceUid, dicom_meta->media_storage_sop_instance_uid, 64);
+  } else {
+    tag_t *sopInstanceUidTag = get_tag(tags, SOP_INSTANCE_UID);
+    if (sopInstanceUidTag == NULL) {
+      fprintf(stderr, "error: SOP instance UID not found in dataset %s\n",
+              file->filename);
+    } else {
+      memcpy(sopInstanceUid, (char *) sopInstanceUidTag->data,
+        sopInstanceUidTag->datasize);
+      sopInstanceUid[sopInstanceUidTag->datasize] = 0;
+    }
+  }
+  tag_t *studyUidTag = get_tag(tags, STUDY_INSTANCE_UID);
+  if (studyUidTag == NULL) {
     fprintf(stderr, "error: study UID not found in dataset %s\n",
             file->filename);
-  }
-  tag_t *seriesUid = get_tag(tags, SERIES_INSTANCE_UID);
-  if (seriesUid == NULL) {
+  } else studyUid = (char *) studyUidTag->data;
+  tag_t *seriesUidTag = get_tag(tags, SERIES_INSTANCE_UID);
+  if (seriesUidTag == NULL) {
     fprintf(stderr, "error: series UID not found in dataset %s\n",
             file->filename);
-  }
+  } else seriesUid = (char *) seriesUidTag->data;
+
   printf(
     "{\"filename\":\"%s\",\"MediaStorageSOPInstanceUID\":\"%.64s\","
     "\"StudyInstanceUID\":\"%.64s\",\"SeriesInstanceUID\":\"%.64s\"}",
-    file->filename, dicom_meta->media_storage_sop_instance_uid,
-    studyUid ? (char *) studyUid->data : "",
-    seriesUid ? (char *) seriesUid->data : "");
+    file->filename, sopInstanceUid, studyUid, seriesUid);
   return 0;
 }
 
@@ -52,9 +67,8 @@ int32_t parse_files(int32_t nfiles, path_t *path) {
   int8_t first_file = 1;
   for (path_t *p = path; p; p = p->next) {
     file_t file;
-    size_t offset = 0;
+    ssize_t offset = 0;
     tag_t tags[MAX_LOADED_TAG];
-
     memset(&file, 0, sizeof (file_t));
     memset(&tags, 0, sizeof (tag_t) * MAX_LOADED_TAG);
     load_file(p->path, &file);
@@ -65,20 +79,23 @@ int32_t parse_files(int32_t nfiles, path_t *path) {
       if (nfiles == 1) return ERROR;
       success--;
     } else {
-      if (first_file) {
-        first_file = 0;
-        if (nfiles > 1) printf("[");
-      } else {
-        if (nfiles > 1) printf(",");
-      }
       dicom_meta_t dicom_meta;
-      // By default, we consider the transfert syntax as IMPLICIT
-      dicom_meta.transfer_syntax = IMPLICIT;
       offset = check_preamble(&file, 0);
       offset = check_header(&file, offset);
       offset = decode_meta_data(&file, offset, &dicom_meta);
-      offset = decode_n_tags(&file, offset, &dicom_meta, tags, MAX_LOADED_TAG);
-      if (output(&file, &dicom_meta, tags) == ERROR) success--;
+      if (offset == ERROR_BIG_ENDIAN) {
+        fprintf(stderr, "error: %s: big endian not supported\n", file.filename);
+        success--;
+      } else {
+        if (first_file) {
+          first_file = 0;
+          if (nfiles > 1) printf("[");
+        } else {
+          if (nfiles > 1) printf(",");
+        }
+        offset = decode_n_tags(&file, offset, &dicom_meta, tags, MAX_LOADED_TAG);
+        if (output(&file, &dicom_meta, tags) == ERROR) success--;
+      }
     }
     munmap(file.content, file.size);
     close_file(&file);
