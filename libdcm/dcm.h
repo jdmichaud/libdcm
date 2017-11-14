@@ -35,7 +35,7 @@ typedef struct implicit_tag_s {
   uint16_t group;
   uint16_t element;
   uint16_t datasize;
-  intptr_t data;
+  void     *data;
 } implicit_tag_t;
 
 extern const uint8_t g_implicit_tag_size;
@@ -45,7 +45,7 @@ typedef struct explicit_tag_s {
   uint16_t element;
   char     vr[2];
   uint16_t datasize;
-  intptr_t data;
+  void     *data;
 } explicit_tag_t;
 
 extern const uint8_t g_explicit_tag_size;
@@ -56,7 +56,7 @@ typedef struct double_length_explicit_tag_s {
   char     vr[2];
   char     reserved;
   uint32_t datasize;
-  intptr_t data;
+  void     *data;
 } double_length_explicit_tag_t;
 
 extern const uint8_t g_double_length_explicit_tag_size;
@@ -94,6 +94,7 @@ uint8_t is_double_length_vr(char *s);
 uint8_t is_valid_vr(char *s);
 uint8_t is_dicom(file_t *file);
 tag_t *get_tag(tag_t *tags, uint32_t number);
+void *get_tag_data(tag_t *tags, uint32_t number);
 char *trim(char *s, char *output);
 
 #endif // __DICM_H__

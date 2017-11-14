@@ -21,42 +21,44 @@ typedef enum transfer_syntax_e {
 
 typedef struct vr_s {
   char name[3];
-  uint8_t double_length;
+  uint8_t double_length; // Does tags of that type has a 32 bits lengths
+  uint8_t string_of_character; // Does tags of that type carry a string of
+                               // of characters as payload
 } vr_t;
 
 // Cf DICOM standard Part 6 Sect 6.2
 static const vr_t g_valid_vrs[NUMBER_OF_VR] = {
-  { "AE", 0 },
-  { "AS", 0 },
-  { "AT", 0 },
-  { "CS", 0 },
-  { "DA", 0 },
-  { "DS", 0 },
-  { "DT", 0 },
-  { "FL", 0 },
-  { "FD", 0 },
-  { "IS", 0 },
-  { "LO", 0 },
-  { "LT", 0 },
-  { "OB", 1 },
-  { "OD", 1 },
-  { "OF", 1 },
-  { "OL", 1 },
-  { "OW", 1 },
-  { "PN", 0 },
-  { "SH", 0 },
-  { "SL", 0 },
-  { "SQ", 1 },
-  { "SS", 0 },
-  { "ST", 0 },
-  { "TM", 0 },
-  { "UC", 0 },
-  { "UI", 0 },
-  { "UL", 0 },
-  { "UN", 1 },
-  { "UR", 0 },
-  { "US", 0 },
-  { "UT", 0 },
+  { "AE", 0, 1 },
+  { "AS", 0, 1 },
+  { "AT", 0, 0 },
+  { "CS", 0, 1 },
+  { "DA", 0, 1 },
+  { "DS", 0, 1 },
+  { "DT", 0, 1 },
+  { "FL", 0, 0 },
+  { "FD", 0, 0 },
+  { "IS", 0, 1 },
+  { "LO", 0, 1 },
+  { "LT", 0, 1 },
+  { "OB", 1, 0 },
+  { "OD", 1, 0 },
+  { "OF", 1, 0 },
+  { "OL", 1, 0 },
+  { "OW", 1, 0 },
+  { "PN", 0, 1 },
+  { "SH", 0, 1 },
+  { "SL", 0, 1 },
+  { "SQ", 1, 0 },
+  { "SS", 0, 0 },
+  { "ST", 0, 1 },
+  { "TM", 0, 1 },
+  { "UC", 0, 0 },
+  { "UI", 0, 1 },
+  { "UL", 0, 0 },
+  { "UN", 1, 0 },
+  { "UR", 0, 1 },
+  { "US", 0, 0 },
+  { "UT", 0, 1 },
 };
 
 #define TRANSFER_TYPE_IMPLICIT "1.2.840.10008.1.2"

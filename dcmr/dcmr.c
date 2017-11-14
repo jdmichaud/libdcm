@@ -28,42 +28,36 @@ void usage(char **argv) {
 }
 
 int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
-  char *studyUid = "";
-  char *seriesUid = "";
-  char sopInstanceUid[64] = { 0 };
-  if (dicom_meta->media_storage_sop_instance_uid[0]) {
-    memcpy(sopInstanceUid, dicom_meta->media_storage_sop_instance_uid, 64);
-  } else {
-    tag_t *sopInstanceUidTag = get_tag(tags, SOP_INSTANCE_UID);
-    if (sopInstanceUidTag == NULL) {
-      fprintf(stderr, "error: SOP instance UID not found in dataset %s\n",
-              file->filename);
-    } else {
-      memcpy(sopInstanceUid, (char *) sopInstanceUidTag->data,
-        sopInstanceUidTag->datasize);
-      sopInstanceUid[sopInstanceUidTag->datasize] = 0;
-    }
-  }
-  tag_t *studyUidTag = get_tag(tags, STUDY_INSTANCE_UID);
-  if (studyUidTag == NULL) {
+  char *sopInstanceUid = (char *) get_tag_data(tags, SOP_INSTANCE_UID);
+  char *studyUid = (char *) get_tag_data(tags, STUDY_INSTANCE_UID);
+  char *seriesUid = (char *) get_tag_data(tags, SERIES_INSTANCE_UID);
+
+  if (dicom_meta->media_storage_sop_instance_uid[0])
+    sopInstanceUid = dicom_meta->media_storage_sop_instance_uid;
+  else if (sopInstanceUid == NULL)
+    fprintf(stderr, "error: SOP instance UID not found in dataset %s\n",
+            file->filename);
+
+  if (studyUid == NULL)
     fprintf(stderr, "error: study UID not found in dataset %s\n",
             file->filename);
-  } else studyUid = (char *) studyUidTag->data;
-  tag_t *seriesUidTag = get_tag(tags, SERIES_INSTANCE_UID);
-  if (seriesUidTag == NULL) {
+  if (seriesUid == NULL)
     fprintf(stderr, "error: series UID not found in dataset %s\n",
             file->filename);
-  } else seriesUid = (char *) seriesUidTag->data;
 
   printf(
     "{\"filename\":\"%s\",\"MediaStorageSOPInstanceUID\":\"%.64s\","
     "\"StudyInstanceUID\":\"%.64s\",\"SeriesInstanceUID\":\"%.64s\"}",
-    file->filename, sopInstanceUid, studyUid, seriesUid);
+    file->filename, sopInstanceUid ? sopInstanceUid : "",
+    studyUid ? studyUid : "", seriesUid ? seriesUid : "");
+
+  if (studyUid) free(studyUid);
+  if (seriesUid) free(seriesUid);
+  if (sopInstanceUid) free(sopInstanceUid);
   return 0;
 }
 
 int32_t parse_files(int32_t nfiles, path_t *path) {
-  int32_t success = nfiles;
   int8_t first_file = 1;
   for (path_t *p = path; p; p = p->next) {
     file_t file;
@@ -71,37 +65,36 @@ int32_t parse_files(int32_t nfiles, path_t *path) {
     tag_t tags[MAX_LOADED_TAG];
     memset(&file, 0, sizeof (file_t));
     memset(&tags, 0, sizeof (tag_t) * MAX_LOADED_TAG);
-    load_file(p->path, &file);
-    if (!is_dicom(&file)) {
-      if (nfiles == 1)
-        fprintf(stderr, "error: %s does not appear to be a dicom file\n",
-                file.filename);
-      if (nfiles == 1) return ERROR;
-      success--;
-    } else {
-      dicom_meta_t dicom_meta;
-      offset = check_preamble(&file, 0);
-      offset = check_header(&file, offset);
-      offset = decode_meta_data(&file, offset, &dicom_meta);
-      if (offset == ERROR_BIG_ENDIAN) {
-        fprintf(stderr, "error: %s: big endian not supported\n", file.filename);
-        success--;
+    if (load_file(p->path, &file) != ERROR) {
+      if (!is_dicom(&file)) {
+        if (nfiles == 1)
+          fprintf(stderr, "error: %s does not appear to be a dicom file\n",
+                  file.filename);
+        if (nfiles == 1) return ERROR;
       } else {
-        if (first_file) {
-          first_file = 0;
-          if (nfiles > 1) printf("[");
+        dicom_meta_t dicom_meta;
+        offset = check_preamble(&file, 0);
+        offset = check_header(&file, offset);
+        offset = decode_meta_data(&file, offset, &dicom_meta);
+        if (offset == ERROR_BIG_ENDIAN) {
+          fprintf(stderr, "error: %s: big endian not supported\n", file.filename);
         } else {
-          if (nfiles > 1) printf(",");
+          if (first_file) {
+            first_file = 0;
+            if (nfiles > 1) printf("[");
+          } else {
+            if (nfiles > 1) printf(",");
+          }
+          offset = decode_n_tags(&file, offset, &dicom_meta, tags, MAX_LOADED_TAG);
+          output(&file, &dicom_meta, tags);
         }
-        offset = decode_n_tags(&file, offset, &dicom_meta, tags, MAX_LOADED_TAG);
-        if (output(&file, &dicom_meta, tags) == ERROR) success--;
       }
+      munmap(file.content, file.size);
+      close_file(&file);
     }
-    munmap(file.content, file.size);
-    close_file(&file);
   }
   if (nfiles > 1) printf("]");
-  return success;
+  return 0;
 }
 
 int8_t add_path(path_t **paths, char *path) {
@@ -137,7 +130,7 @@ void free_paths(path_t **paths) {
   }
 }
 
-int32_t count_paths(path_t *paths) {
+size_t count_paths(path_t *paths) {
   int32_t c = 0;
   for (path_t *p = paths; p; ++c, p = p->next);
   return c;
@@ -149,6 +142,8 @@ int32_t generate_path(char *arg, path_t **paths) {
     perror(arg);
   } else {
     if (S_ISDIR(buf.st_mode)) {
+      // If arg is a directory, walk the filesystem tree an call generate_path
+      // on all the entries
       DIR *dir;
       struct dirent entry;
       struct dirent *result;
@@ -183,8 +178,8 @@ int main(int argc, char **argv) {
   path_t *paths = NULL;
   for (int32_t i = 1; i < argc; ++i)
     generate_path(argv[i], &paths);
-  int32_t nfiles = count_paths(paths);
-  int8_t ret = !(nfiles == parse_files(nfiles, paths));
+  size_t nfiles = count_paths(paths);
+  int8_t ret = parse_files(nfiles, paths);
   free_paths(&paths);
   return ret;
 }

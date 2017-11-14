@@ -126,11 +126,11 @@ ssize_t decode_explicit_tag(file_t *file, ssize_t offset, tag_t *tag) {
     dl_explicit_tag = (double_length_explicit_tag_t *) &(file->content[offset]);
     tag->datasize = dl_explicit_tag->datasize;
     tag->data =
-      (intptr_t) &(file->content[offset + g_double_length_explicit_tag_size]);
+      (void *) &(file->content[offset + g_double_length_explicit_tag_size]);
     return g_double_length_explicit_tag_size + tag->datasize;
   }
   tag->datasize = explicit_tag->datasize;
-  tag->data = (intptr_t) &(file->content[offset + g_explicit_tag_size]);
+  tag->data = (void *) &(file->content[offset + g_explicit_tag_size]);
   return g_explicit_tag_size + tag->datasize;
 }
 
@@ -143,7 +143,7 @@ ssize_t decode_implicit_tag(file_t *file, ssize_t offset, tag_t *tag)
   tag->element = implicit_tag->element;
   get_vr(implicit_tag, tag->vr);
   tag->datasize = implicit_tag->datasize;
-  tag->data = (intptr_t) &(file->content[offset + g_implicit_tag_size]);
+  tag->data = (void *) &(file->content[offset + g_implicit_tag_size]);
   return g_implicit_tag_size + tag->datasize;
 }
 
@@ -223,6 +223,13 @@ uint8_t is_double_length_vr(char *s) {
   return 0;
 }
 
+uint8_t is_str_of_char_vr(char *s) {
+  for (uint8_t i = 0; i < NUMBER_OF_VR; ++i)
+    if (!strncmp(s, g_valid_vrs[i].name, 2))
+      return g_valid_vrs[i].string_of_character;
+  return 0;
+}
+
 uint8_t is_valid_vr(char *s) {
   for (uint8_t i = 0; i < NUMBER_OF_VR; ++i)
     if (!strncmp(s, g_valid_vrs[i].name, 2)) return 1;
@@ -241,7 +248,7 @@ uint8_t is_dicom(file_t *file) {
     ((uint16_t *) file->content)[0] == 0x0008)) {
     // if yes, check if a known value representation is present
     if (is_valid_vr((char *) &(file->content[5]))) return 1;
-    // Check if we can read a size and ten read the next tag
+    // Check if we can read a size and then read the next tag
     uint32_t datasize = ((uint32_t *) file->content)[1];
     if (file->size > 8 + datasize &&
       (((uint16_t *) file->content)[(8 + datasize) / sizeof (uint16_t)] == 0x0002 ||
@@ -256,11 +263,28 @@ uint8_t is_dicom(file_t *file) {
 tag_t *get_tag(tag_t *tags, uint32_t number) {
   for (ssize_t i = 0; i < MAX_LOADED_TAG
     && (tags[i].group != 0x0000 || tags[i].element != 0x0000); ++i) {
-    if ((uint32_t) (tags[i].group << 16) + tags[i].element == number) {
+    if ((uint32_t) (tags[i].group << 16) + tags[i].element == number)
       return &tags[i];
-    }
   }
   return NULL;
+}
+
+void *get_tag_data(tag_t *tags, uint32_t number) {
+  tag_t *tag = get_tag(tags, number);
+  if (tag == NULL) return NULL;
+  // We add one if we have a string of character so we can append a terminating
+  // NULL character
+  void *data = malloc(sizeof (char) *
+                      (tag->datasize + (is_str_of_char_vr(tag->vr) ? 1 : 0)));
+  if (data == NULL) {
+    perror("malloc");
+    return NULL;
+  }
+  memcpy(data, tag->data, sizeof (char) * tag->datasize);
+  if (is_str_of_char_vr(tag->vr)) {
+    ((char *) data)[tag->datasize] = 0;
+  }
+  return data;
 }
 
 char *trim(char *s, char *output) {
