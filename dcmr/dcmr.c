@@ -32,7 +32,7 @@ int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
   char *studyUid = (char *) get_tag_data(tags, STUDY_INSTANCE_UID);
   char *seriesUid = (char *) get_tag_data(tags, SERIES_INSTANCE_UID);
 
-  if (dicom_meta->media_storage_sop_instance_uid[0])
+  if (sopInstanceUid == NULL && dicom_meta->media_storage_sop_instance_uid[0])
     sopInstanceUid = dicom_meta->media_storage_sop_instance_uid;
   else if (sopInstanceUid == NULL)
     fprintf(stderr, "error: SOP instance UID not found in dataset %s\n",
@@ -53,7 +53,8 @@ int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
 
   if (studyUid) free(studyUid);
   if (seriesUid) free(seriesUid);
-  if (sopInstanceUid) free(sopInstanceUid);
+  if (sopInstanceUid &&
+    !dicom_meta->media_storage_sop_instance_uid[0]) free(sopInstanceUid);
   return 0;
 }
 
