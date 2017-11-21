@@ -86,7 +86,9 @@ int32_t parse_files(int32_t nfiles, path_t *path) {
           } else {
             if (nfiles > 1) printf(",");
           }
-          offset = decode_n_tags(&file, offset, &dicom_meta, tags, MAX_LOADED_TAG);
+          size_t tag_offset = 0;
+          offset = decode_n_tags(&file, offset, &dicom_meta, tags, &tag_offset,
+                                 MAX_LOADED_TAG);
           output(&file, &dicom_meta, tags);
         }
       }

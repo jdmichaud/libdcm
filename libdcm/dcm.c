@@ -194,26 +194,36 @@ ssize_t decode_meta_data(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta)
   return offset - last_step;
 }
 
-int8_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
-                     tag_t *tags, size_t maxtags)
+// int8_t decode_sequence_tag(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
+//                            tag_t *tags, ssize_t *tag_offset, size_t maxtags) {
+//   return offset;
+// }
+
+ssize_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
+                     tag_t *tags, size_t *tag_offset, size_t maxtags)
 {
-  ssize_t head = offset;
-  size_t tag_index = 0;
-  while (head <= file->size && tag_index < maxtags) {
-    offset += dicom_meta->transfer_syntax == IMPLICIT ?
-      decode_implicit_tag(file, offset, &tags[tag_index]) :
-      decode_explicit_tag(file, offset, &tags[tag_index]);
-    if (offset == -1) return ERROR;
-    // PRINT_TAG(stdout, tags[tag_index]);
+  while (offset <= file->size && *tag_offset < maxtags) {
+    ssize_t shift = 0;
+    if ((shift = dicom_meta->transfer_syntax == IMPLICIT ?
+        decode_implicit_tag(file, offset, &tags[*tag_offset]) :
+        decode_explicit_tag(file, offset, &tags[*tag_offset])) == -1)
+      return ERROR;
+    printf("shift: %li\n", shift);
+    PRINT_TAG(stdout, tags[*tag_offset]);
     // TODO: Manage PixelData and other type of payloads
-    if (tags[tag_index].group > 0x0100) break;
-    // printf("(0x%04X, 0x%04X) %.2s (%u) %s\n", tags[tag_index].group,
-    //        tags[tag_index].element, tags[tag_index].vr, tags[tag_index].datasize,
-    //        tag_data_to_string(&tags[tag_index], (char *) tags[tag_index].data, NULL));
-    head += 8 + tags[tag_index].datasize;
-    tag_index++;
+    if (tags[*tag_offset].group > 0x0100) break;
+    // printf("(0x%04X, 0x%04X) %.2s (%u) %s\n", tags[*tag_offset].group,
+    //        tags[*tag_offset].element, tags[*tag_offset].vr, tags[*tag_offset].datasize,
+    //        tag_data_to_string(&tags[*tag_offset], (char *) tags[*tag_offset].data, NULL));
+    // if (tags[*tag_offset].vr[0] == 'S' && tags[*tag_offset].vr[1] == 'Q') {
+    //   offset = decode_sequence_tag(file, offset, dicom_meta, tags,
+    //                                tag_offset, maxtags);
+    // } else {
+      offset += shift + tags[*tag_offset].datasize;
+      (*tag_offset)++;
+    // }
   }
-  return 0;
+  return offset;
 }
 
 uint8_t is_double_length_vr(char *s) {

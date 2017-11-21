@@ -88,8 +88,8 @@ void get_vr(implicit_tag_t *implicit_tag, char vr[2]);
 ssize_t decode_explicit_tag(file_t *file, ssize_t offset, tag_t *tag);
 ssize_t decode_implicit_tag(file_t *file, ssize_t offset, tag_t *tag);
 ssize_t decode_meta_data(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta);
-int8_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
-                     tag_t *tags, size_t maxtags);
+ssize_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
+                      tag_t *tags, size_t *tag_offset, size_t maxtags);
 uint8_t is_double_length_vr(char *s);
 uint8_t is_valid_vr(char *s);
 uint8_t is_dicom(file_t *file);
