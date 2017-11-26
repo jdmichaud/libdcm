@@ -316,17 +316,17 @@ uint8_t is_dicom(file_t *file) {
   return 0; // Not a DICOM file
 }
 
-tag_t *get_tag(tag_t *tags, uint32_t number) {
+tag_t *get_tag(tag_t *tags, uint32_t tagid) {
   for (ssize_t i = 0; i < MAX_LOADED_TAG
     && (tags[i].group != 0x0000 || tags[i].element != 0x0000); ++i) {
-    if ((uint32_t) (tags[i].group << 16) + tags[i].element == number)
+    if ((uint32_t) (tags[i].group << 16) + tags[i].element == tagid)
       return &tags[i];
   }
   return NULL;
 }
 
-void *get_tag_data(tag_t *tags, uint32_t number) {
-  tag_t *tag = get_tag(tags, number);
+void *get_tag_data(tag_t *tags, uint32_t tagid) {
+  tag_t *tag = get_tag(tags, tagid);
   if (tag == NULL) return NULL;
   // We add one if we have a string of character so we can append a terminating
   // NULL character
