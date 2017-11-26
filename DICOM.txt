@@ -77,11 +77,56 @@ can carry more specific meaning. A tag UI, for example, will contain a string,
 but of a particular type: a Unique Id. So that tag can be read with a specific
 parser.
 
+## Sequence (cf DICOM standard Part 5 Sect 7.5[6])
+
 the `SQ` tag is a special type of tag. It contains other DICOM tags. This means
 that the DICOM format can contain a tree of tags.
+
+Data Element with Implicit VR Defined as a Sequence of Items with defined size
+
+XXXX EEEE XXXXXXXX FFFEE000 XXXXXXXX ... FFFEE000 XXXXXXXX ... FFFEE000 XXXXXXXX
+^^^^ ^^^^ ^^^^^^^^ ^^^^^^^^ ^^^^^^^^ ^^^ ^^^^^^^^^^^^^^^^^ ^^^ ^^^^^^^^^^^^^^^^^
+  |    |      |       |         |     |      |        \_____________________ etc
+  |    |      |       |         |     |      \_______  Second item tag (4 bytes)
+  |    |      |       |         |     \______________ Tag data (variable length)
+  |    |      |       |         \_______________________ Item tag size (4 bytes)
+  |    |      |       \______________________________________ Item tag (4 bytes)
+  |    |      \__________________________________________ Value length (4 bytes)
+  |    \_______________________________________________ Element number (2 bytes)
+  \______________________________________________________ Group number (2 bytes)
+
+Data Element with Implicit VR Defined as a Sequence of Items With SDI*
+
+XXXX EEEE FFFFFFFF FFFEE000 XXXXXXXX ... FFFEE000 XXXXXXXX ... FFFEE0DD.00000000
+^^^^ ^^^^ ^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |    |      |       |         |     |                            \_ SDI (4 b)*
+  |    |      |       |         |     \______________ Tag data (variable length)
+  |    |      |       |         \_______________________ Item tag size (4 bytes)
+  |    |      |       \______________________________________ Item tag (4 bytes)
+  |    |      \________________________________________________ Unused (4 bytes)
+  |    \_______________________________________________ Element number (2 bytes)
+  \______________________________________________________ Group number (2 bytes)
+* Sequence Delimitation Item
+
+Data Element with Explicit VR Defined as a Sequence of Items
+
+XXXX EEEE 53510000 FFFFFFFF FFFEE000 XXXXXXXX ................ FFFEE0DD.00000000
+^^^^ ^^^^ ^^^^^^^^ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |    |    |   |     |         |        |         |               \_ SDI (4 b)*
+  |    |    |   |     |         |        |         \_ Tag data (variable length)
+  |    |    |   |     |         |        \______________ Item tag size (4 bytes)
+  |    |    |   |     |         \____________________________ Item tag (4 bytes)
+  |    |    |   |     \________________________________________ Unused (4 bytes)
+  |    |    |   \______________________________________________ Unused (2 bytes)
+  |    |    \____________________________________ Value representation (2 bytes)
+  |    \_______________________________________________ Element number (2 bytes)
+  \______________________________________________________ Group number (2 bytes)
+* Sequence Delimitation Item
+
 
 [1] http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_7.1
 [2] http://dicom.nema.org/medical/dicom/current/output/html/part06.html#chapter_6
 [3] http://dicom.nema.org/medical/dicom/current/output/html/part06.html#chapter_A
 [4] http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.2
 [5] http://dicom.nema.org/medical/dicom/current/output/html/part06.html#chapter_7
+[6] http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_7.5

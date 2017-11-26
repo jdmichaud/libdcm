@@ -53,8 +53,7 @@ int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
 
   if (studyUid) free(studyUid);
   if (seriesUid) free(seriesUid);
-  if (sopInstanceUid &&
-    !dicom_meta->media_storage_sop_instance_uid[0]) free(sopInstanceUid);
+  if (sopInstanceUid) free(sopInstanceUid);
   return 0;
 }
 

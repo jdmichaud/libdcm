@@ -13,3 +13,5 @@ static:
 clean:
 	${MAKE} clean -C libdcm
 	${MAKE} clean -C dcmr
+
+re: clean all

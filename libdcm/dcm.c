@@ -52,11 +52,13 @@ int8_t close_file(file_t *file) {
 }
 
 ssize_t check_preamble(file_t *file, ssize_t offset) {
-  for (size_t i = 0; i < PREAMBLE_LENGTH / sizeof (uint64_t); ++i) {
-    if ((uint64_t) file->content[i] != 0)
-      // Some garbage is present in the preamble so we don't skip it
-      return offset;
-  }
+  // Check presence of preamble
+  explicit_tag_t *tag;
+  tag = (explicit_tag_t *) &(file->content[offset]);
+  // We assume if there is a tag, it is either a meta-tag or a 0008 group
+  if (tag->group == 0x0002 || tag->group == 0x0008)
+    // There is no preamble
+    return offset;
   return offset + PREAMBLE_LENGTH;
 }
 
@@ -127,11 +129,11 @@ ssize_t decode_explicit_tag(file_t *file, ssize_t offset, tag_t *tag) {
     tag->datasize = dl_explicit_tag->datasize;
     tag->data =
       (void *) &(file->content[offset + g_double_length_explicit_tag_size]);
-    return g_double_length_explicit_tag_size + tag->datasize;
+    return g_double_length_explicit_tag_size;
   }
   tag->datasize = explicit_tag->datasize;
   tag->data = (void *) &(file->content[offset + g_explicit_tag_size]);
-  return g_explicit_tag_size + tag->datasize;
+  return g_explicit_tag_size;
 }
 
 ssize_t decode_implicit_tag(file_t *file, ssize_t offset, tag_t *tag)
@@ -144,7 +146,7 @@ ssize_t decode_implicit_tag(file_t *file, ssize_t offset, tag_t *tag)
   get_vr(implicit_tag, tag->vr);
   tag->datasize = implicit_tag->datasize;
   tag->data = (void *) &(file->content[offset + g_implicit_tag_size]);
-  return g_implicit_tag_size + tag->datasize;
+  return g_implicit_tag_size;
 }
 
 ssize_t decode_meta_data(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta)
@@ -153,13 +155,13 @@ ssize_t decode_meta_data(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta)
   ssize_t last_step = 0;
   tag_t tag;
   memset(dicom_meta, 0, sizeof (dicom_meta_t));
-  // Default transfert syntax is IMPLICIT
+  // Default transfer syntax is IMPLICIT
   // Cf DICOM standard Part 5 Chapt 10.1
   dicom_meta->transfer_syntax = IMPLICIT;
   while (head <= file->size) {
     memset(&tag, 0, sizeof (tag));
-    offset += (last_step = decode_explicit_tag(file, offset, &tag));
-    // PRINT_TAG(stdout, tag);
+    last_step = decode_explicit_tag(file, offset, &tag);
+    //PRINT_TAG(stdout, tag);
     if (tag.group != META_DATA_GROUP) break;
     switch (tag.element) {
     case 0x0010:
@@ -189,15 +191,59 @@ ssize_t decode_meta_data(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta)
     default:
       break;
     }
+    offset += last_step + tag.datasize;
   }
   // Rewind the last tag which is not a META tag
-  return offset - last_step;
+  return offset;
 }
 
-// int8_t decode_sequence_tag(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
-//                            tag_t *tags, ssize_t *tag_offset, size_t maxtags) {
-//   return offset;
-// }
+ssize_t decode_sequence_tag(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
+                            tag_t *tags, size_t *tag_offset, size_t maxtags) {
+  // Is implicit or explicit
+  if (dicom_meta->transfer_syntax == IMPLICIT) {
+    // If implicit, check the size
+    implicit_tag_t *implicit_tag;
+    implicit_tag = (implicit_tag_t *) &(file->content[offset]);
+    // TODO: Manage implicit sequences with defined length
+    // If the size is not 0xFFFFFFFF, seek by the size
+    if (implicit_tag->datasize != 0xFFFFFFFF) {
+      offset += g_implicit_tag_size + implicit_tag->datasize;
+    } else {
+      // Seek to the first item
+      offset += g_implicit_tag_size;
+    }
+  } else {
+    // Seek to the first item
+    offset += g_double_length_explicit_tag_size;
+  }
+  while (1) {
+    // Check first item
+    implicit_tag_t *implicit_tag;
+    implicit_tag = (implicit_tag_t *) &(file->content[offset]);
+    // If sequence delimiter tag found, stop
+    if (implicit_tag->group == (SEQUENCE_DELIMITATION_TAG >> 16) &&
+        implicit_tag->element == (SEQUENCE_DELIMITATION_TAG & 0x0000FFFF)) {
+      offset += g_implicit_tag_size;
+      break;
+    }
+    // If not first item -> ERROR
+    if (implicit_tag->group != (ITEM_TAG >> 16) ||
+        implicit_tag->element != (ITEM_TAG & 0x0000FFFF))
+      return ERROR;
+    // It is a first item, skip it and start reading sequence
+    offset += g_implicit_tag_size;
+    offset = decode_n_tags(file, offset, dicom_meta, tags, tag_offset,
+                           maxtags);
+    if (offset == ERROR) return ERROR;
+    implicit_tag = (implicit_tag_t *) &(file->content[offset]);
+    // If item delimiter tag found, skip it
+    if (implicit_tag->group == (ITEM_DELIMITATION_TAG >> 16) &&
+        implicit_tag->element == (ITEM_DELIMITATION_TAG & 0x0000FFFF))
+      offset += g_implicit_tag_size;
+    implicit_tag = (implicit_tag_t *) &(file->content[offset]);
+  }
+  return offset;
+}
 
 ssize_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
                      tag_t *tags, size_t *tag_offset, size_t maxtags)
@@ -208,20 +254,20 @@ ssize_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
         decode_implicit_tag(file, offset, &tags[*tag_offset]) :
         decode_explicit_tag(file, offset, &tags[*tag_offset])) == -1)
       return ERROR;
-    printf("shift: %li\n", shift);
-    PRINT_TAG(stdout, tags[*tag_offset]);
+    // PRINT_TAG(stdout, tags[*tag_offset]);
     // TODO: Manage PixelData and other type of payloads
-    if (tags[*tag_offset].group > 0x0100) break;
-    // printf("(0x%04X, 0x%04X) %.2s (%u) %s\n", tags[*tag_offset].group,
-    //        tags[*tag_offset].element, tags[*tag_offset].vr, tags[*tag_offset].datasize,
-    //        tag_data_to_string(&tags[*tag_offset], (char *) tags[*tag_offset].data, NULL));
-    // if (tags[*tag_offset].vr[0] == 'S' && tags[*tag_offset].vr[1] == 'Q') {
-    //   offset = decode_sequence_tag(file, offset, dicom_meta, tags,
-    //                                tag_offset, maxtags);
-    // } else {
+    if (tags[*tag_offset].group > 0x4FFE) break;
+    // If end of item or end of sequence, we bailout
+    if (tags[*tag_offset].group == 0xFFFE) break;
+    // Sequence tag are managed by a special function
+    if (tags[*tag_offset].vr[0] == 'S' && tags[*tag_offset].vr[1] == 'Q') {
+      offset = decode_sequence_tag(file, offset, dicom_meta, tags, tag_offset,
+                                   maxtags);
+      if (offset == ERROR) return ERROR;
+    } else {
       offset += shift + tags[*tag_offset].datasize;
       (*tag_offset)++;
-    // }
+    }
   }
   return offset;
 }

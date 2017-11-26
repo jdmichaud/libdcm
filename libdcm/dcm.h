@@ -34,7 +34,7 @@ typedef struct file_s {
 typedef struct implicit_tag_s {
   uint16_t group;
   uint16_t element;
-  uint16_t datasize;
+  uint32_t datasize;
   void     *data;
 } implicit_tag_t;
 
@@ -54,7 +54,7 @@ typedef struct double_length_explicit_tag_s {
   uint16_t group;
   uint16_t element;
   char     vr[2];
-  char     reserved;
+  char     reserved[2];
   uint32_t datasize;
   void     *data;
 } double_length_explicit_tag_t;
