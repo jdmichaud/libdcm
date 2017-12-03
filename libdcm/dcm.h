@@ -95,6 +95,7 @@ uint8_t is_valid_vr(char *s);
 uint8_t is_dicom(file_t *file);
 tag_t *get_tag(tag_t *tags, uint32_t tagid);
 void *get_tag_data(tag_t *tags, uint32_t tagid);
+uint8_t get_tag_data_int(tag_t *tags, uint32_t tagid, int64_t *res);
 char *trim(char *s, char *output);
 
 #endif // __DICM_H__

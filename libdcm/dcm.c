@@ -207,12 +207,18 @@ ssize_t decode_sequence_tag(file_t *file, ssize_t offset, dicom_meta_t *dicom_me
     // TODO: Manage implicit sequences with defined length
     // If the size is not 0xFFFFFFFF, seek by the size
     if (implicit_tag->datasize != 0xFFFFFFFF) {
-      offset += g_implicit_tag_size + implicit_tag->datasize;
-    } else {
-      // Seek to the first item
-      offset += g_implicit_tag_size;
+      return offset + g_implicit_tag_size + implicit_tag->datasize;
     }
+    // Seek to the first item
+    offset += g_implicit_tag_size;
   } else {
+    // If implicit, check the size
+    double_length_explicit_tag_t *dl_explicit_tag;
+    dl_explicit_tag = (double_length_explicit_tag_t *) &(file->content[offset]);
+    // TODO: Manage explicit sequences with defined length
+    if (dl_explicit_tag->datasize != 0xFFFFFFFF) {
+      return offset + g_double_length_explicit_tag_size + dl_explicit_tag->datasize;
+    }
     // Seek to the first item
     offset += g_double_length_explicit_tag_size;
   }
@@ -246,7 +252,7 @@ ssize_t decode_sequence_tag(file_t *file, ssize_t offset, dicom_meta_t *dicom_me
 }
 
 ssize_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
-                     tag_t *tags, size_t *tag_offset, size_t maxtags)
+                      tag_t *tags, size_t *tag_offset, size_t maxtags)
 {
   while (offset <= file->size && *tag_offset < maxtags) {
     ssize_t shift = 0;
@@ -255,8 +261,8 @@ ssize_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
         decode_explicit_tag(file, offset, &tags[*tag_offset])) == -1)
       return ERROR;
     // PRINT_TAG(stdout, tags[*tag_offset]);
-    // TODO: Manage PixelData and other type of payloads
-    if (tags[*tag_offset].group > 0x4FFE) break;
+    // // TODO: Manage PixelData and other type of payloads
+    // if (tags[*tag_offset].group > 0x4FFE) break;
     // If end of item or end of sequence, we bailout
     if (tags[*tag_offset].group == 0xFFFE) break;
     // Sequence tag are managed by a special function
@@ -268,6 +274,8 @@ ssize_t decode_n_tags(file_t *file, ssize_t offset, dicom_meta_t *dicom_meta,
       offset += shift + tags[*tag_offset].datasize;
       (*tag_offset)++;
     }
+    // We found the pixel, let's bail out
+    if (tags[*tag_offset - 1].group == 0x7FE0) break;
   }
   return offset;
 }
@@ -341,6 +349,29 @@ void *get_tag_data(tag_t *tags, uint32_t tagid) {
     ((char *) data)[tag->datasize] = 0;
   }
   return data;
+}
+
+uint8_t get_tag_data_int(tag_t *tags, uint32_t tagid, int64_t *res) {
+  tag_t *tag = get_tag(tags, tagid);
+  if (tag == NULL) return 0;
+  if (!strncmp(tag->vr, "US", 2)) {
+    uint16_t tmp = ((uint16_t *) tag->data)[0];
+    *res = tmp;
+    return 0;
+  } else if (!strncmp(tag->vr, "UL", 2)) {
+    uint32_t tmp = ((uint32_t *) tags->data)[0];
+    *res = tmp;
+    return 0;
+  } else if (!strncmp(tag->vr, "SS", 2)) {
+    int16_t tmp = ((int16_t *) tags->data)[0];
+    *res = tmp;
+    return 0;
+  } else if (!strncmp(tag->vr, "SL", 2)) {
+    int32_t tmp = ((int32_t *) tags->data)[0];
+    *res = tmp;
+    return 0;
+  }
+  return ERROR;
 }
 
 char *trim(char *s, char *output) {

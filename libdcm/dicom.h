@@ -68,11 +68,17 @@ static const vr_t g_valid_vrs[NUMBER_OF_VR] = {
 
 #define META_DATA_GROUP 0x0002 // Cf DICOM standard Part 6 Chapt 7
 
-#define SOP_INSTANCE_UID 0x00080018
-#define STUDY_INSTANCE_UID 0x0020000D
-#define SERIES_INSTANCE_UID 0x0020000E
-#define ITEM_TAG 0xFFFEE000
-#define ITEM_DELIMITATION_TAG 0xFFFEE00D
+#define SOP_INSTANCE_UID          0x00080018
+#define STUDY_INSTANCE_UID        0x0020000D
+#define SERIES_INSTANCE_UID       0x0020000E
+#define ROW_TAG                   0x00280010
+#define COLUMN_TAG                0x00280011
+#define BITS_ALLOCATED_TAG        0x00280100
+#define BITS_STORED_TAG           0x00280101
+#define HIGH_BIT_TAG              0x00280102
+#define PIXEL_DATA_TAG            0x7FE00010
+#define ITEM_TAG                  0xFFFEE000
+#define ITEM_DELIMITATION_TAG     0xFFFEE00D
 #define SEQUENCE_DELIMITATION_TAG 0xFFFEE0DD
 
 #endif // __DICOM_H__
