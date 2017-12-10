@@ -71,6 +71,7 @@ static const vr_t g_valid_vrs[NUMBER_OF_VR] = {
 #define SOP_INSTANCE_UID          0x00080018
 #define STUDY_INSTANCE_UID        0x0020000D
 #define SERIES_INSTANCE_UID       0x0020000E
+#define NB_OF_FRAMES              0x00280008
 #define ROW_TAG                   0x00280010
 #define COLUMN_TAG                0x00280011
 #define BITS_ALLOCATED_TAG        0x00280100

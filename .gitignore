@@ -1,3 +1,4 @@
 dcmr/dcmr
+pixdump/pixdump
 libdcm.a
 *.o

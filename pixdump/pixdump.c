@@ -16,42 +16,78 @@ void usage(char **argv) {
   fprintf(stderr, "usage: %s <FILE>\n", argv[0]);
 }
 
-int8_t write_image(uint16_t width, uint16_t height, uint16_t maxdepth,
-                   void *data, char *filename) {
+int8_t write_image_raw_8bits(uint16_t width, uint16_t height, uint8_t bits_allocated,
+                             uint8_t bits_stored, void *data, char *filename) {
   int8_t of = creat(filename, O_CREAT);
   if (of < 0) {
     perror(filename);
     return ERROR;
   }
-  dprintf(of, "P5\n%u %u\n%u\n", width, height, 16383);
-  // char *resample = malloc(sizeof (char) * width * height);
-  // for (ssize_t i = 0; i < width * height; ++i) {
-  //   resample[i] = ((uint16_t *) data)[i] >> 8;
-  // }
-  // write(of, resample, width * height);
-  write(of, data, width * height * 2);
-  // for (ssize_t i = 0; i < (width * height) * 2; i += 2) {
-  //   write(of, &((char *)data)[i + 1], 1);
-  //   write(of, &((char *)data)[i + 0], 1);
-  // }
-
-  uint64_t max = 0;
+  uint8_t *shifted = malloc(sizeof (uint8_t) * width * height);
+  uint16_t mask = (1 << bits_stored) - 1;
   for (ssize_t i = 0; i < width * height; ++i) {
-    max = ((uint16_t *) data)[i] > max ? ((uint16_t *) data)[i] : max;
+    shifted[i] = (((uint16_t *) data)[i] & mask) << (bits_allocated - bits_stored) >> 8;
   }
-  printf("max:%lu\n", max);
+  write(of, shifted, width * height);
+  free(shifted);
+  close(of);
+  return 0;
+}
+
+int8_t write_image_raw(uint16_t width, uint16_t height, uint8_t bits_allocated,
+                       uint8_t bits_stored, void *data, char *filename) {
+  int8_t of = creat(filename, O_CREAT);
+  if (of < 0) {
+    perror(filename);
+    return ERROR;
+  }
+  uint16_t *shifted = malloc(sizeof (uint16_t) * width * height);
+  uint16_t mask = (1 << bits_stored) - 1;
+  for (ssize_t i = 0; i < width * height; ++i) {
+    shifted[i] = (((uint16_t *) data)[i] & mask) << (bits_allocated - bits_stored);
+  }
+  write(of, shifted, width * height * (bits_allocated >> 3));
+  free(shifted);
+  close(of);
+  return 0;
+}
+
+int8_t write_image_ppm(uint16_t width, uint16_t height, uint8_t bits_allocated,
+                       uint8_t bits_stored, void *data, char *filename) {
+  int8_t of = creat(filename, O_CREAT);
+  if (of < 0) {
+    perror(filename);
+    return ERROR;
+  }
+  // Print ppm header
+  dprintf(of, "P5\n%u %u\n%u\n", width, height, (1 << bits_allocated) - 1);
+  // Shift due to bits_stored
+  uint16_t *shifted = malloc(sizeof (uint16_t) * width * height);
+  uint16_t mask = (1 << bits_stored) - 1;
+  for (ssize_t i = 0; i < width * height; ++i) {
+    uint16_t v = (((uint16_t *) data)[i] & mask) << (bits_allocated - bits_stored);
+    shifted[i] = ((char *) &v)[0] << 8 | ((char *) &v)[1];
+  }
+  write(of, shifted, width * height * (bits_allocated >> 3));
+  free(shifted);
+  // Simple write
+  // write(of, data, width * height * (bits_allocated >> 3));
   close(of);
   return 0;
 }
 
 int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
-  int64_t row = 0;
-  int64_t column = 0;
-  int64_t high_bit = 0;
+  ssize_t row = 0;
+  ssize_t column = 0;
+  ssize_t high_bit = 0;
+  ssize_t bits_stored = 0;
+  ssize_t bits_allocated = 0;
   get_tag_data_int(tags, ROW_TAG, &row);
   get_tag_data_int(tags, COLUMN_TAG, &column);
+  get_tag_data_int(tags, BITS_STORED_TAG, &bits_stored);
+  get_tag_data_int(tags, BITS_ALLOCATED_TAG, &bits_allocated);
   get_tag_data_int(tags, HIGH_BIT_TAG, &high_bit);
-  printf("%lu\n", high_bit);
+  printf("high bit: %lu\n", high_bit);
   tag_t *pixeldata = get_tag(tags, PIXEL_DATA_TAG);
   if (pixeldata == NULL) {
     fprintf(stderr, "error: could not retrieve pixels\n");
@@ -64,14 +100,15 @@ int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
   printf("row:%lu\n", row);
   printf("column:%lu\n", column);
   printf("pixeldata->datasize:%u\n", pixeldata->datasize);
-  ssize_t nbframes = pixeldata->datasize / (row * column);
-  printf("%li\n", nbframes);
+  ssize_t nbframes = pixeldata->datasize / (row * column * (bits_allocated >> 3));
+  printf("nbframes %li\n", nbframes);
   for (ssize_t i = 0; i < nbframes; ++i) {
     sprintf(output_filename, "%.*s_%03li.ppm", (int) (dot - file->filename),
       file->filename, i);
     printf("writing %s\n", output_filename);
-    write_image(column, row, (1 << high_bit) - 1,
-      &((uint16_t *) pixeldata->data)[(row * column) * i], output_filename);
+    write_image_ppm(column, row, bits_allocated, bits_stored,
+      &((uint8_t *) pixeldata->data)[(row * column * (bits_allocated >> 3)) * i],
+      output_filename);
   }
   free(output_filename);
   return 0;
