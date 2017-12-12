@@ -23,10 +23,10 @@ int8_t write_image_raw_8bits(uint16_t width, uint16_t height, uint8_t bits_alloc
     perror(filename);
     return ERROR;
   }
+  uint16_t *uint16ptr = (uint16_t *) data;
   uint8_t *shifted = malloc(sizeof (uint8_t) * width * height);
-  uint16_t mask = (1 << bits_stored) - 1;
-  for (ssize_t i = 0; i < width * height; ++i) {
-    shifted[i] = (((uint16_t *) data)[i] & mask) << (bits_allocated - bits_stored) >> 8;
+  for (ssize_t i = 0; i < (width * height); ++i) {
+    shifted[i] = uint16ptr[i] >> 8;
   }
   write(of, shifted, width * height);
   free(shifted);
@@ -41,13 +41,7 @@ int8_t write_image_raw(uint16_t width, uint16_t height, uint8_t bits_allocated,
     perror(filename);
     return ERROR;
   }
-  uint16_t *shifted = malloc(sizeof (uint16_t) * width * height);
-  uint16_t mask = (1 << bits_stored) - 1;
-  for (ssize_t i = 0; i < width * height; ++i) {
-    shifted[i] = (((uint16_t *) data)[i] & mask) << (bits_allocated - bits_stored);
-  }
-  write(of, shifted, width * height * (bits_allocated >> 3));
-  free(shifted);
+  write(of, data, width * height * (bits_allocated >> 3));
   close(of);
   return 0;
 }
@@ -66,12 +60,13 @@ int8_t write_image_ppm(uint16_t width, uint16_t height, uint8_t bits_allocated,
   uint16_t mask = (1 << bits_stored) - 1;
   for (ssize_t i = 0; i < width * height; ++i) {
     uint16_t v = (((uint16_t *) data)[i] & mask) << (bits_allocated - bits_stored);
+    // ppm is big endian
     shifted[i] = ((char *) &v)[0] << 8 | ((char *) &v)[1];
+    // TODO: remove mask and try this one
+    // shifted[i] = ((char *) &((uint16_t *) data)[i])[0] << 8 | ((char *) &((uint16_t *) data)[i])[1];
   }
   write(of, shifted, width * height * (bits_allocated >> 3));
   free(shifted);
-  // Simple write
-  // write(of, data, width * height * (bits_allocated >> 3));
   close(of);
   return 0;
 }
@@ -103,10 +98,10 @@ int8_t output(file_t *file, dicom_meta_t *dicom_meta, tag_t *tags) {
   ssize_t nbframes = pixeldata->datasize / (row * column * (bits_allocated >> 3));
   printf("nbframes %li\n", nbframes);
   for (ssize_t i = 0; i < nbframes; ++i) {
-    sprintf(output_filename, "%.*s_%03li.ppm", (int) (dot - file->filename),
+    sprintf(output_filename, "%.*s_%03li.raw", (int) (dot - file->filename),
       file->filename, i);
     printf("writing %s\n", output_filename);
-    write_image_ppm(column, row, bits_allocated, bits_stored,
+    write_image_raw_8bits(column, row, bits_allocated, bits_stored,
       &((uint8_t *) pixeldata->data)[(row * column * (bits_allocated >> 3)) * i],
       output_filename);
   }
